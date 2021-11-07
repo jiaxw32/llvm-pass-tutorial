@@ -138,13 +138,25 @@ namespace {
       }
       // If fla annotations
       if(toObfuscate(flag,&F,"bcf")) {
-        bogus(F);
-        doF(*F.getParent());
-        return true;
+        if (isInvoke(&F)) {
+          bogus(F);
+          doF(*F.getParent());
+          return true;
+        }
       }
 
       return false;
     } // end of runOnFunction()
+
+    bool isInvoke(Function *f) {
+      for (Function::iterator i = f->begin(); i != f->end(); ++i) {
+          BasicBlock *bb = &*i;
+          if (isa<InvokeInst>(bb->getTerminator())) {
+              return false;
+          }
+      }
+      return true;
+    }
 
     void bogus(Function &F) {
       // For statistics and debug
@@ -365,6 +377,7 @@ namespace {
         if(i->isBinaryOp()){ // binary instructions
           unsigned opcode = i->getOpcode();
           BinaryOperator *op, *op1 = NULL;
+          UnaryOperator *op2;
           Twine *var = new Twine("_");
           // treat differently float or int
           // Binary int
@@ -404,8 +417,8 @@ namespace {
               switch(llvm::cryptoutils->get_range(3)){ // can be improved
                 case 0: //do nothing
                   break;
-                case 1: op = BinaryOperator::CreateFNeg(i->getOperand(0),*var,&*i);
-                        op1 = BinaryOperator::Create(Instruction::FAdd,op,
+                case 1: op2 = UnaryOperator::CreateFNeg(i->getOperand(0),*var,&*i);
+                        op1 = BinaryOperator::Create(Instruction::FAdd,op2,
                             i->getOperand(1),"gen",&*i);
                         break;
                 case 2: op = BinaryOperator::Create(Instruction::FSub,
@@ -554,8 +567,8 @@ namespace {
       // Replacing all the branches we found
       for(std::vector<Instruction*>::iterator i =toEdit.begin();i!=toEdit.end();++i){
         //if y < 10 || x*(x+1) % 2 == 0
-        opX = new LoadInst ((Value *)x, "", (*i));
-        opY = new LoadInst ((Value *)y, "", (*i));
+        opX = new LoadInst (x->getType()->getElementType(), (Value *)x, "", (*i));
+        opY = new LoadInst (x->getType()->getElementType(), (Value *)y, "", (*i));
 
         op = BinaryOperator::Create(Instruction::Sub, (Value *)opX,
             ConstantInt::get(Type::getInt32Ty(M.getContext()), 1,

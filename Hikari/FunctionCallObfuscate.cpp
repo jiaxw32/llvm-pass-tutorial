@@ -19,7 +19,6 @@
 
 #include "json.hpp"
 #include "llvm/ADT/Triple.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
@@ -60,7 +59,7 @@ struct FunctionCallObfuscate : public FunctionPass {
       SmallString<32> Path;
       if (sys::path::home_directory(Path)) { // Stolen from LineEditor.cpp
         sys::path::append(Path, "Hikari", "SymbolConfig.json");
-        SymbolConfigPath = Path.str();
+        SymbolConfigPath = Path.str().str();
       }
     }
     ifstream infile(SymbolConfigPath);
@@ -99,8 +98,7 @@ struct FunctionCallObfuscate : public FunctionPass {
         FunctionType::get(Int8PtrTy, {Int8PtrTy}, false);
     M.getOrInsertFunction("objc_getClass", objc_getClass_type);
     M.getOrInsertFunction("objc_getMetaClass", objc_getClass_type);
-    StructType *objc_property_attribute_t_type = reinterpret_cast<StructType *>(
-        M.getTypeByName("struct.objc_property_attribute_t"));
+      StructType *objc_property_attribute_t_type = reinterpret_cast<StructType *>(StructType::getTypeByName(M.getContext(), "struct.objc_property_attribute_t"));
     if (objc_property_attribute_t_type == NULL) {
       vector<Type *> types;
       types.push_back(Int8PtrTy);
@@ -157,7 +155,7 @@ struct FunctionCallObfuscate : public FunctionPass {
       GlobalVariable &GV = *G;
       if (GV.getName().str().find("OBJC_CLASSLIST_REFERENCES") == 0) {
         if (GV.hasInitializer()) {
-          string className = GV.getInitializer()->getName();
+            string className = GV.getInitializer()->getName().str();
           className.replace(className.find("OBJC_CLASS_$_"),
                             strlen("OBJC_CLASS_$_"), "");
           for (auto U = GV.user_begin(); U != GV.user_end(); U++) {
@@ -245,8 +243,8 @@ struct FunctionCallObfuscate : public FunctionPass {
       for (auto I = BB.getFirstInsertionPt(), end = BB.end(); I != end; ++I) {
         Instruction &Inst = *I;
         if (isa<CallInst>(&Inst) || isa<InvokeInst>(&Inst)) {
-          CallSite CS(&Inst);
-          Function *calledFunction = CS.getCalledFunction();
+            CallBase * CB = dyn_cast<CallBase>(&Inst);
+          Function *calledFunction = CB->getCalledFunction();
           if (calledFunction == NULL) {
             /*
               Note:
@@ -256,7 +254,7 @@ struct FunctionCallObfuscate : public FunctionPass {
               the called Function* from there
             */
             calledFunction =
-                dyn_cast<Function>(CS.getCalledValue()->stripPointerCasts());
+                dyn_cast<Function>(CB->getCalledOperand()->stripPointerCasts());
           }
           // Simple Extracting Failed
           // Use our own implementation
@@ -264,7 +262,7 @@ struct FunctionCallObfuscate : public FunctionPass {
             DEBUG_WITH_TYPE(
                 "opt", errs()
                            << "Failed To Extract Function From Indirect Call: "
-                           << *CS.getCalledValue() << "\n");
+                           << CB->getCalledOperand() << "\n");
             continue;
           }
           // It's only safe to restrict our modification to external symbols
@@ -282,7 +280,7 @@ struct FunctionCallObfuscate : public FunctionPass {
             string sname = this->Configuration[calledFunction->getName().str()]
                                .get<string>();
             StringRef calledFunctionName = StringRef(sname);
-            BasicBlock *EntryBlock = CS->getParent();
+            BasicBlock *EntryBlock = CB->getParent();
             IRBuilder<> IRB(EntryBlock, EntryBlock->getFirstInsertionPt());
             vector<Value *> dlopenargs;
             dlopenargs.push_back(Constant::getNullValue(Int8PtrTy));
@@ -295,9 +293,9 @@ struct FunctionCallObfuscate : public FunctionPass {
             args.push_back(Handle);
             args.push_back(IRB.CreateGlobalStringPtr(calledFunctionName));
             Value *fp = IRB.CreateCall(dlsym_decl, ArrayRef<Value *>(args));
-            Value *bitCastedFunction =
-                IRB.CreateBitCast(fp, CS.getCalledValue()->getType());
-            CS.setCalledFunction(bitCastedFunction);
+              Value *bitCastedFunction =
+                   IRB.CreateBitCast(fp, CB->getCalledOperand()->getType());
+               CB->setCalledFunction(CB->getFunctionType(),bitCastedFunction);
           }
         }
       }

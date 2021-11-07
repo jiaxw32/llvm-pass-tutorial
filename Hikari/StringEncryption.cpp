@@ -111,8 +111,9 @@ struct StringEncryption : public ModulePass {
           GV->getSection() != StringRef("llvm.metadata") &&
           GV->getSection().find(StringRef("__objc")) == string::npos &&
           GV->getName().find("OBJC") == string::npos) {
+          
         if (GV->getInitializer()->getType() ==
-            Func->getParent()->getTypeByName("struct.__NSConstantString_tag")) {
+            StructType::getTypeByName(Func->getParent()->getContext(), "struct.__NSConstantString_tag")) {
           objCStrings.insert(GV);
           rawStrings.insert(
               cast<GlobalVariable>(cast<ConstantStruct>(GV->getInitializer())
@@ -279,7 +280,7 @@ struct StringEncryption : public ModulePass {
     LI->setAtomic(AtomicOrdering::Acquire); // Will be released at the start of
                                             // C
 #if LLVM_VERSION_MAJOR >= 10
-    LI->setAlignment(MaybeAlign(4));
+    LI->setAlignment(Align(4));
 #else
     LI->setAlignment(4);
 #endif
@@ -294,7 +295,7 @@ struct StringEncryption : public ModulePass {
     StoreInst *SI = IRBC.CreateStore(
         ConstantInt::get(Type::getInt32Ty(Func->getContext()), 1), StatusGV);
 #if LLVM_VERSION_MAJOR >= 10
-    SI->setAlignment(MaybeAlign(4));
+    SI->setAlignment(Align(4));
 #else
     SI->setAlignment(4);
 #endif

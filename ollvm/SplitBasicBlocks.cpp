@@ -31,7 +31,7 @@ struct SplitBasicBlock : public FunctionPass {
   static char ID; // Pass identification, replacement for typeid
   bool flag;
 
-  SplitBasicBlock() : FunctionPass(ID) {}
+    SplitBasicBlock() : FunctionPass(ID) {}
   SplitBasicBlock(bool flag) : FunctionPass(ID) {
     
     this->flag = flag;
@@ -44,13 +44,7 @@ struct SplitBasicBlock : public FunctionPass {
   void shuffle(std::vector<int> &vec);
 };
 }
-
 char SplitBasicBlock::ID = 0;
-static RegisterPass<SplitBasicBlock> X("splitbbl", "BasicBlock splitting");
-
-Pass *llvm::createSplitBasicBlock(bool flag) {
-  return new SplitBasicBlock(flag);
-}
 
 bool SplitBasicBlock::runOnFunction(Function &F) {
   // Check if the number of applications is correct
@@ -92,7 +86,7 @@ void SplitBasicBlock::split(Function *f) {
     }
 
     // Check splitN and current BB size
-    if ((size_t)splitN > curr->size()) {
+    if ((size_t)splitN >= curr->size()) {
       splitN = curr->size() - 1;
     }
 
@@ -141,4 +135,3 @@ void SplitBasicBlock::shuffle(std::vector<int> &vec) {
     std::swap(vec[i], vec[cryptoutils->get_uint32_t() % (i + 1)]);
   }
 }
-

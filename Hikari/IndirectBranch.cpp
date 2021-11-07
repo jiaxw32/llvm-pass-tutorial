@@ -81,6 +81,7 @@ struct IndirectBranch : public FunctionPass {
         BIs.push_back(BI);
       }
     } // Finish collecting branching conditions
+    
     Value *zero =
         ConstantInt::get(Type::getInt32Ty(Func.getParent()->getContext()), 0);
     for (BranchInst *BI : BIs) {
@@ -93,16 +94,21 @@ struct IndirectBranch : public FunctionPass {
         BBs.push_back(BI->getSuccessor(1));
       }
       BBs.push_back(BI->getSuccessor(0));
-      ArrayType *AT = ArrayType::get(
-          Type::getInt8PtrTy(Func.getParent()->getContext()), BBs.size());
+
+      
       vector<Constant *> BlockAddresses;
       for (unsigned i = 0; i < BBs.size(); i++) {
         BlockAddresses.push_back(BlockAddress::get(BBs[i]));
       }
       GlobalVariable *LoadFrom = NULL;
-
+        
+      
       if (BI->isConditional() ||
           indexmap.find(BI->getSuccessor(0)) == indexmap.end()) {
+          ArrayType *AT = ArrayType::get(
+                                         Type::getInt8PtrTy(Func.getParent()->getContext()),
+                                         BBs.size()
+                                         );
         // Create a new GV
         Constant *BlockAddressArray =
             ConstantArray::get(AT, ArrayRef<Constant *>(BlockAddresses));

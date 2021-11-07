@@ -25,20 +25,18 @@ STATISTIC(Flattened, "Functions flattened");
 
 namespace {
 struct Flattening : public FunctionPass {
-  static char ID;  // Pass identification, replacement for typeid
-  bool flag;
-
-  Flattening() : FunctionPass(ID) {}
-  Flattening(bool flag) : FunctionPass(ID) { this->flag = flag; }
-
-  bool runOnFunction(Function &F);
-  bool flatten(Function *f);
+    static char ID;  // Pass identification, replacement for typeid
+    bool flag;
+    
+    Flattening() : FunctionPass(ID) {}
+    Flattening(bool flag) : FunctionPass(ID) { this->flag = flag; }
+    
+    bool runOnFunction(Function &F);
+    bool flatten(Function *f);
 };
 }
 
 char Flattening::ID = 0;
-static RegisterPass<Flattening> X("flattening", "Call graph flattening");
-Pass *llvm::createFlattening(bool flag) { return new Flattening(flag); }
 
 bool Flattening::runOnFunction(Function &F) {
   Function *tmp = &F;
@@ -59,21 +57,10 @@ bool Flattening::flatten(Function *f) {
   LoadInst *load;
   SwitchInst *switchI;
   AllocaInst *switchVar;
-
   // SCRAMBLER
   char scrambling_key[16];
   llvm::cryptoutils->get_bytes(scrambling_key, 16);
   // END OF SCRAMBLER
-
-  // Lower switch
-#if LLVM_VERSION_MAJOR >= 9
-    // >=9.0, LowerSwitchPass depends on LazyValueInfoWrapperPass, which cause AssertError.
-    // So I move LowerSwitchPass into register function, just before FlatteningPass.
-#else
-  FunctionPass *lower = createLowerSwitchPass();
-  lower->runOnFunction(*f);
-#endif
-
   // Save all original BB
   for (Function::iterator i = f->begin(); i != f->end(); ++i) {
     BasicBlock *tmp = &*i;
@@ -89,7 +76,6 @@ bool Flattening::flatten(Function *f) {
   if (origBB.size() <= 1) {
     return false;
   }
-
   // Remove first BB
   origBB.erase(origBB.begin());
 
@@ -126,12 +112,11 @@ bool Flattening::flatten(Function *f) {
       ConstantInt::get(Type::getInt32Ty(f->getContext()),
                        llvm::cryptoutils->scramble32(0, scrambling_key)),
       switchVar, insert);
-
   // Create main loop
   loopEntry = BasicBlock::Create(f->getContext(), "loopEntry", f, insert);
   loopEnd = BasicBlock::Create(f->getContext(), "loopEnd", f, insert);
 
-  load = new LoadInst(switchVar, "switchVar", loopEntry);
+  load = new LoadInst(switchVar->getType()->getElementType(), switchVar, "switchVar", loopEntry);
 
   // Move first BB on top
   insert->moveBefore(loopEntry);
@@ -152,7 +137,6 @@ bool Flattening::flatten(Function *f) {
   f->begin()->getTerminator()->eraseFromParent();
 
   BranchInst::Create(loopEntry, &*f->begin());
-
   // Put all BB in the switch
   for (vector<BasicBlock *>::iterator b = origBB.begin(); b != origBB.end();
        ++b) {
@@ -168,7 +152,6 @@ bool Flattening::flatten(Function *f) {
         llvm::cryptoutils->scramble32(switchI->getNumCases(), scrambling_key)));
     switchI->addCase(numCase, i);
   }
-
   // Recalculate switchVar
   for (vector<BasicBlock *>::iterator b = origBB.begin(); b != origBB.end();
        ++b) {

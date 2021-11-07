@@ -1,1 +1,1 @@
-# ollvm/armariris/hikari port to llvm10 in 2020
+# ollvm/hikari port to llvm13.0 in 2021

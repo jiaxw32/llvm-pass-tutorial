@@ -15,7 +15,8 @@
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "llvm/IR/CallSite.h"
+//#include "llvm/IR/AbstractCallSite.h"
+//#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
@@ -50,7 +51,7 @@ struct FunctionWrapper : public ModulePass {
     return StringRef("FunctionWrapper");
   }
   bool runOnModule(Module &M) override {
-    vector<CallSite *> callsites;
+    vector<CallBase *> callsites;
     for (Module::iterator iter = M.begin(); iter != M.end(); iter++) {
       Function &F = *iter;
       if (toObfuscate(flag, &F, "fw")) {
@@ -59,23 +60,23 @@ struct FunctionWrapper : public ModulePass {
           Instruction *Inst = &*fi;
           if (isa<CallInst>(Inst) || isa<InvokeInst>(Inst)) {
             if ((int)llvm::cryptoutils->get_range(100) <= ProbRate) {
-              callsites.push_back(new CallSite(Inst));
+              callsites.push_back(dyn_cast<CallBase>(Inst));
             }
           }
         }
       }
     }
-    for (CallSite *CS : callsites) {
+    for (CallBase *CS : callsites) {
       for (int i = 0; i < ObfTimes && CS != nullptr; i++) {
         CS = HandleCallSite(CS);
       }
     }
     return true;
   } // End of runOnModule
-  CallSite *HandleCallSite(CallSite *CS) {
+  CallBase *HandleCallSite(CallBase *CS) {
     Value *calledFunction = CS->getCalledFunction();
     if (calledFunction == nullptr) {
-      calledFunction = CS->getCalledValue()->stripPointerCasts();
+      calledFunction = CS->getCalledOperand()->stripPointerCasts();
     }
     // Filter out IndirectCalls that depends on the context
     // Otherwise It'll be blantantly troublesome since you can't reference an
@@ -124,17 +125,21 @@ struct FunctionWrapper : public ModulePass {
     for (auto arg = func->arg_begin(); arg != func->arg_end(); arg++) {
       params.push_back(arg);
     }
-    Value *retval = IRB.CreateCall(ConstantExpr::getBitCast(cast<Function>(calledFunction),CS->getCalledValue()->getType()), ArrayRef<Value *>(params));
-    if (ft->getReturnType()->isVoidTy()) {
-      IRB.CreateRetVoid();
-    } else {
-      IRB.CreateRet(retval);
-    }
+      
+      // https://reviews.llvm.org/file/data/geppl65dwye5qo3ht6bd/PHID-FILE-r4lg3336sjtu6ydogdz5/file
+    Value *retval = IRB.CreateCall(cast<FunctionType>(calledFunction->getType()->getPointerElementType()), calledFunction, ArrayRef<Value *>(params));
+    
+      if (ft->getReturnType()->isVoidTy()) {
+          IRB.CreateRetVoid();
+      } else {
+          IRB.CreateRet(retval);
+      }
     CS->setCalledFunction(func);
     CS->mutateFunctionType(ft);
-    Instruction *Inst = CS->getInstruction();
-    delete CS;
-    return new CallSite(Inst);
+//    Instruction *Inst = CS->getInstruction();
+//    delete CS;
+//    return new CallSite(Inst);
+      return CS;
   }
 };
 ModulePass *createFunctionWrapperPass() { return new FunctionWrapper(); }

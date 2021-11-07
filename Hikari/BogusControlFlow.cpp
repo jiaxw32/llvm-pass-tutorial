@@ -173,9 +173,9 @@ namespace {
       GV->eraseFromParent();
     }
     else if (!isa<Function>(C))
-      if (isa<CompositeType>(C->getType()))
-        C->destroyConstant();
-
+        //ref: https://reviews.llvm.org/D75660
+      if (isa<StructType, ArrayType, PointerType, VectorType>(C->getType()))
+          C->destroyConstant();
     // If the constant referenced anything, see if we can delete it as well.
     for (Constant *O : Operands)
       RemoveDeadConstant(O);
@@ -476,6 +476,7 @@ struct BogusControlFlow : public FunctionPass {
       if (i->isBinaryOp()) { // binary instructions
         unsigned opcode = i->getOpcode();
         BinaryOperator *op, *op1 = NULL;
+          UnaryOperator *op2;
         Twine *var = new Twine("_");
         // treat differently float or int
         // Binary int
@@ -518,11 +519,11 @@ struct BogusControlFlow : public FunctionPass {
             switch (llvm::cryptoutils->get_range(3)) { // can be improved
             case 0:                                    // do nothing
               break;
-            case 1:
-              op = BinaryOperator::CreateFNeg(i->getOperand(0), *var, &*i);
-              op1 = BinaryOperator::Create(Instruction::FAdd, op,
-                                           i->getOperand(1), "gen", &*i);
-              break;
+                case 1:
+                    op2 = UnaryOperator::CreateFNeg(i->getOperand(0),*var,&*i);
+                    op1 = BinaryOperator::Create(Instruction::FAdd,op2,
+                                                 i->getOperand(1),"gen",&*i);
+                    break;
             case 2:
               op = BinaryOperator::Create(Instruction::FSub, i->getOperand(0),
                                           i->getOperand(1), *var, &*i);

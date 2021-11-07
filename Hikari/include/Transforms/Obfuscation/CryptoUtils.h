@@ -29,6 +29,7 @@ namespace llvm {
 class CryptoUtils;
 extern ManagedStatic<CryptoUtils> cryptoutils;
 
+#define ENDIAN_LITTLE
 #define BYTE(x, n) (((x) >> (8 * (n))) & 0xFF)
 
 #if defined(__i386) || defined(__i386__) || defined(_M_IX86) ||                \
